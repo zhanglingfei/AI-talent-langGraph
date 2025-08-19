@@ -26,4 +26,7 @@ python -c "from src.main import TalentMatchingSystem; system = TalentMatchingSys
 uvicorn api.app:app --reload --host 0.0.0.0 --port 8000
 
 # 6. 或使用 Docker
+
 docker-compose up -d
+
+<img width="1756" height="1780" alt="image" src="https://github.com/user-attachments/assets/6b214f08-ac11-4005-86d8-78c66fa184cc" />
