@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LangGraph Workflow Visualization</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Arial', 'Helvetica', sans-serif;
+            background: #ffffff;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            background: #ffffff;
+            border: 3px solid #000000;
+            padding: 40px;
+        }
+        
+        h1 {
+            color: #000000;
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+            font-weight: bold;
+            letter-spacing: 2px;
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: #333333;
+            margin-bottom: 40px;
+            font-size: 1.2em;
+            font-weight: 500;
+        }
+        
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+            border-bottom: 3px solid #000000;
+            padding-bottom: 0;
+        }
+        
+        .tab {
+            padding: 15px 30px;
+            background: #ffffff;
+            border: 2px solid #000000;
+            border-bottom: none;
+            color: #000000;
+            font-size: 1em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .tab:hover {
+            background: #ffeb3b;
+        }
+        
+        .tab.active {
+            background: #ff0000;
+            color: #ffffff;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .workflow-container {
+            position: relative;
+            background: #ffffff;
+            border: 2px solid #000000;
+            padding: 30px;
+            min-height: 600px;
+            overflow: auto;
+        }
+        
+        .canvas-container {
+            position: relative;
+            width: 100%;
+            height: 600px;
+            background: #ffffff;
+            border: 2px solid #000000;
+        }
+        
+        canvas {
+            background: #ffffff;
+        }
+        
+        .node {
+            position: absolute;
+            padding: 12px 20px;
+            font-weight: bold;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+            z-index: 10;
+            border: 3px solid #000000;
+            text-transform: uppercase;
+        }
+        
+        .node:hover {
+            transform: translateY(-3px);
+            box-shadow: 5px 5px 0px #000000;
+        }
+        
+        .node.start {
+            background: #00ff00;
+            color: #000000;
+        }
+        
+        .node.end {
+            background: #ff0000;
+            color: #ffffff;
+        }
+        
+        .node.process {
+            background: #ffeb3b;
+            color: #000000;
+        }
+        
+        .node.decision {
+            background: #000000;
+            color: #ffffff;
+            clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+            padding: 16px 30px;
+        }
+        
+        .node.storage {
+            background: #ffffff;
+            color: #000000;
+            border: 3px solid #ff0000;
+        }
+        
+        .info-panel {
+            margin-top: 30px;
+            padding: 20px;
+            background: #ffffff;
+            border: 3px solid #000000;
+        }
+        
+        .info-panel h3 {
+            color: #000000;
+            margin-bottom: 15px;
+            font-size: 1.4em;
+            text-transform: uppercase;
+            font-weight: bold;
+            border-bottom: 2px solid #ff0000;
+            padding-bottom: 10px;
+        }
+        
+        .state-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 12px;
+            margin-top: 15px;
+        }
+        
+        .state-item {
+            background: #ffeb3b;
+            padding: 10px 15px;
+            border: 2px solid #000000;
+            font-size: 0.9em;
+            font-weight: 500;
+        }
+        
+        .state-item strong {
+            color: #ff0000;
+            display: inline-block;
+            margin-right: 5px;
+            font-weight: bold;
+        }
+        
+        .legend {
+            margin-top: 30px;
+            padding: 20px;
+            background: #ffffff;
+            border: 3px solid #000000;
+        }
+        
+        .legend h3 {
+            color: #000000;
+            margin-bottom: 15px;
+            text-transform: uppercase;
+            font-weight: bold;
+            font-size: 1.3em;
+        }
+        
+        .legend-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 600;
+        }
+        
+        .legend-box {
+            width: 30px;
+            height: 30px;
+            border: 3px solid #000000;
+        }
+        
+        .tooltip {
+            position: absolute;
+            background: #000000;
+            color: #ffffff;
+            padding: 8px 12px;
+            font-size: 12px;
+            z-index: 1000;
+            pointer-events: none;
+            display: none;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        
+        .description-list {
+            color: #000000;
+            margin-left: 20px;
+            margin-top: 10px;
+        }
+        
+        .description-list li {
+            margin: 10px 0;
+            font-weight: 500;
+        }
+        
+        .description-list strong {
+            color: #ff0000;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>LANGGRAPH WORKFLOW VISUALIZATION</h1>
+        <div class="subtitle">IT Talent Matching System Based on LangGraph</div>
+        
+        <!-- Tabs -->
+        <div class="tabs">
+            <button class="tab active" onclick="showTab('email')">Email Processing</button>
+            <button class="tab" onclick="showTab('matching')">Matching Engine</button>
+            <button class="tab" onclick="showTab('system')">Complete System</button>
+        </div>
+        
+        <!-- Email Processing Workflow -->
+        <div id="email" class="tab-content active">
+            <div class="workflow-container">
+                <div class="canvas-container">
+                    <canvas id="emailCanvas"></canvas>
+                    <div id="emailNodes"></div>
+                </div>
+                
+                <div class="info-panel">
+                    <h3>Graph State Variables</h3>
+                    <div class="state-grid">
+                        <div class="state-item"><strong>current_email:</strong> EmailInfo</div>
+                        <div class="state-item"><strong>email_type:</strong> EmailType Enum</div>
+                        <div class="state-item"><strong>classification_confidence:</strong> float (0-1)</div>
+                        <div class="state-item"><strong>candidate_info:</strong> CandidateInfo</div>
+                        <div class="state-item"><strong>project_info:</strong> ProjectInfo</div>
+                        <div class="state-item"><strong>errors:</strong> List[str]</div>
+                        <div class="state-item"><strong>processing_log:</strong> List[str]</div>
+                        <div class="state-item"><strong>retry_count:</strong> int</div>
+                    </div>
+                </div>
+                
+                <div class="info-panel">
+                    <h3>Processing Flow Description</h3>
+                    <ul class="description-list">
+                        <li><strong>ENTRY POINT:</strong> Receives email data (EmailInfo object)</li>
+                        <li><strong>CLASSIFICATION NODE:</strong> Uses GPT-4 to analyze email type (Candidate/Project/Other)</li>
+                        <li><strong>CONDITIONAL ROUTING:</strong> Routes based on classification result and confidence score</li>
+                        <li><strong>INFORMATION EXTRACTION:</strong> Parses candidate or project info using Pydantic models</li>
+                        <li><strong>DATA PERSISTENCE:</strong> Saves to Google Sheets database</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Matching Workflow -->
+        <div id="matching" class="tab-content">
+            <div class="workflow-container">
+                <div class="canvas-container">
+                    <canvas id="matchingCanvas"></canvas>
+                    <div id="matchingNodes"></div>
+                </div>
+                
+                <div class="info-panel">
+                    <h3>Graph State Variables</h3>
+                    <div class="state-grid">
+                        <div class="state-item"><strong>match_type:</strong> "project_to_resume" | "resume_to_project"</div>
+                        <div class="state-item"><strong>match_query_id:</strong> string</div>
+                        <div class="state-item"><strong>prefiltered_items:</strong> List[Dict]</div>
+                        <div class="state-item"><strong>match_results:</strong> List[MatchResult]</div>
+                        <div class="state-item"><strong>errors:</strong> List[str]</div>
+                        <div class="state-item"><strong>processing_log:</strong> List[str]</div>
+                    </div>
+                </div>
+                
+                <div class="info-panel">
+                    <h3>Matching Flow Description</h3>
+                    <ul class="description-list">
+                        <li><strong>CONDITIONAL ENTRY:</strong> Routes based on match_type parameter</li>
+                        <li><strong>PREFILTERING:</strong> Initial keyword-based filtering</li>
+                        <li><strong>AI MATCHING:</strong> GPT-4 deep analysis and scoring</li>
+                        <li><strong>RESULT STORAGE:</strong> Saves match results and scores</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Complete System -->
+        <div id="system" class="tab-content">
+            <div class="workflow-container">
+                <div class="canvas-container">
+                    <canvas id="systemCanvas"></canvas>
+                    <div id="systemNodes"></div>
+                </div>
+                
+                <div class="info-panel">
+                    <h3>System Architecture Description</h3>
+                    <ul class="description-list">
+                        <li><strong>DATA SOURCE:</strong> Gmail API for email and attachment retrieval</li>
+                        <li><strong>PROCESSING PIPELINE:</strong> Email classification → Information extraction → Data storage</li>
+                        <li><strong>MATCHING ENGINE:</strong> Prefiltering → AI deep matching → Result storage</li>
+                        <li><strong>DATA STORAGE:</strong> Google Sheets as persistence layer</li>
+                        <li><strong>LLM INTEGRATION:</strong> GPT-4 for classification, extraction, and matching</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Legend -->
+        <div class="legend">
+            <h3>Legend</h3>
+            <div class="legend-grid">
+                <div class="legend-item">
+                    <div class="legend-box" style="background: #00ff00;"></div>
+                    <span>START/END NODE</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-box" style="background: #ffeb3b;"></div>
+                    <span>PROCESS NODE</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-box" style="background: #000000;"></div>
+                    <span>DECISION NODE</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-box" style="background: #ffffff; border-color: #ff0000;"></div>
+                    <span>STORAGE NODE</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="tooltip" id="tooltip"></div>
+    
+    <script>
+        // Workflow definitions
+        const emailWorkflow = {
+            nodes: [
+                { id: 'start', label: 'START', type: 'start', x: 400, y: 50 },
+                { id: 'classify', label: 'CLASSIFY_EMAIL', type: 'decision', x: 400, y: 150 },
+                { id: 'extract_candidate', label: 'EXTRACT_CANDIDATE', type: 'process', x: 200, y: 280 },
+                { id: 'extract_project', label: 'EXTRACT_PROJECT', type: 'process', x: 400, y: 280 },
+                { id: 'save_candidate', label: 'SAVE_CANDIDATE', type: 'storage', x: 200, y: 410 },
+                { id: 'save_project', label: 'SAVE_PROJECT', type: 'storage', x: 400, y: 410 },
+                { id: 'end_low', label: 'END (LOW CONF)', type: 'end', x: 600, y: 280 },
+                { id: 'end_other', label: 'END (OTHER)', type: 'end', x: 650, y: 150 },
+                { id: 'end', label: 'END', type: 'end', x: 300, y: 510 }
+            ],
+            edges: [
+                { from: 'start', to: 'classify', label: 'INIT' },
+                { from: 'classify', to: 'extract_candidate', label: 'CANDIDATE' },
+                { from: 'classify', to: 'extract_project', label: 'PROJECT' },
+                { from: 'classify', to: 'end_low', label: 'CONF<0.6' },
+                { from: 'classify', to: 'end_other', label: 'OTHER' },
+                { from: 'extract_candidate', to: 'save_candidate', label: '' },
+                { from: 'extract_project', to: 'save_project', label: '' },
+                { from: 'save_candidate', to: 'end', label: '' },
+                { from: 'save_project', to: 'end', label: '' }
+            ]
+        };
+        
+        const matchingWorkflow = {
+            nodes: [
+                { id: 'start', label: 'START', type: 'start', x: 400, y: 50 },
+                { id: 'router', label: 'ROUTE_PREFILTER', type: 'decision', x: 400, y: 150 },
+                { id: 'prefilter_cand', label: 'PREFILTER_CANDIDATES', type: 'storage', x: 250, y: 280 },
+                { id: 'prefilter_proj', label: 'PREFILTER_PROJECTS', type: 'storage', x: 550, y: 280 },
+                { id: 'ai_match', label: 'AI_MATCHING', type: 'process', x: 400, y: 380 },
+                { id: 'save_results', label: 'SAVE_RESULTS', type: 'storage', x: 400, y: 480 },
+                { id: 'end', label: 'END', type: 'end', x: 400, y: 560 }
+            ],
+            edges: [
+                { from: 'start', to: 'router', label: 'ENTRY' },
+                { from: 'router', to: 'prefilter_cand', label: 'P2R' },
+                { from: 'router', to: 'prefilter_proj', label: 'R2P' },
+                { from: 'prefilter_cand', to: 'ai_match', label: '' },
+                { from: 'prefilter_proj', to: 'ai_match', label: '' },
+                { from: 'ai_match', to: 'save_results', label: '' },
+                { from: 'save_results', to: 'end', label: '' }
+            ]
+        };
+        
+        const systemWorkflow = {
+            nodes: [
+                // Gmail Integration
+                { id: 'gmail_api', label: 'GMAIL API', type: 'start', x: 100, y: 100 },
+                { id: 'attachments', label: 'ATTACHMENTS', type: 'start', x: 100, y: 200 },
+                
+                // Email Processing
+                { id: 'email_classify', label: 'EMAIL CLASSIFY', type: 'decision', x: 300, y: 150 },
+                { id: 'extract', label: 'EXTRACT INFO', type: 'process', x: 450, y: 150 },
+                { id: 'save_email', label: 'SAVE DATA', type: 'storage', x: 600, y: 150 },
+                
+                // Database
+                { id: 'cand_db', label: 'CANDIDATE DB', type: 'storage', x: 750, y: 100 },
+                { id: 'proj_db', label: 'PROJECT DB', type: 'storage', x: 750, y: 200 },
+                { id: 'match_db', label: 'MATCH DB', type: 'storage', x: 750, y: 450 },
+                
+                // Matching
+                { id: 'prefilter', label: 'PREFILTER', type: 'process', x: 450, y: 350 },
+                { id: 'ai_match', label: 'AI MATCHING', type: 'decision', x: 600, y: 350 },
+                { id: 'save_match', label: 'SAVE MATCH', type: 'storage', x: 750, y: 350 }
+            ],
+            edges: [
+                { from: 'gmail_api', to: 'email_classify', label: '' },
+                { from: 'attachments', to: 'email_classify', label: '' },
+                { from: 'email_classify', to: 'extract', label: '' },
+                { from: 'extract', to: 'save_email', label: '' },
+                { from: 'save_email', to: 'cand_db', label: '' },
+                { from: 'save_email', to: 'proj_db', label: '' },
+                { from: 'cand_db', to: 'prefilter', label: '' },
+                { from: 'proj_db', to: 'prefilter', label: '' },
+                { from: 'prefilter', to: 'ai_match', label: '' },
+                { from: 'ai_match', to: 'save_match', label: '' },
+                { from: 'save_match', to: 'match_db', label: '' }
+            ]
+        };
+        
+        // Drawing functions
+        function drawWorkflow(canvasId, nodesContainerId, workflow) {
+            const canvas = document.getElementById(canvasId);
+            const ctx = canvas.getContext('2d');
+            const nodesContainer = document.getElementById(nodesContainerId);
+            
+            // Clear previous content
+            nodesContainer.innerHTML = '';
+            
+            // Set canvas size
+            canvas.width = 900;
+            canvas.height = 600;
+            
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw edges
+            ctx.strokeStyle = '#000000';
+            ctx.lineWidth = 3;
+            ctx.font = 'bold 12px Arial';
+            ctx.fillStyle = '#ff0000';
+            
+            workflow.edges.forEach(edge => {
+                const fromNode = workflow.nodes.find(n => n.id === edge.from);
+                const toNode = workflow.nodes.find(n => n.id === edge.to);
+                
+                if (fromNode && toNode) {
+                    // Draw arrow line
+                    ctx.beginPath();
+                    ctx.moveTo(fromNode.x, fromNode.y + 20);
+                    
+                    // Create curved path
+                    const midX = (fromNode.x + toNode.x) / 2;
+                    const midY = (fromNode.y + toNode.y) / 2;
+                    
+                    ctx.quadraticCurveTo(midX, midY, toNode.x, toNode.y - 20);
+                    ctx.stroke();
+                    
+                    // Draw arrow head
+                    const angle = Math.atan2(toNode.y - midY, toNode.x - midX);
+                    ctx.save();
+                    ctx.translate(toNode.x, toNode.y - 20);
+                    ctx.rotate(angle);
+                    ctx.beginPath();
+                    ctx.moveTo(-10, -5);
+                    ctx.lineTo(0, 0);
+                    ctx.lineTo(-10, 5);
+                    ctx.stroke();
+                    ctx.restore();
+                    
+                    // Draw label
+                    if (edge.label) {
+                        ctx.fillText(edge.label, midX - 30, midY);
+                    }
+                }
+            });
+            
+            // Create node elements
+            workflow.nodes.forEach(node => {
+                const nodeDiv = document.createElement('div');
+                nodeDiv.className = `node ${node.type}`;
+                nodeDiv.textContent = node.label;
+                
+                // Adjust position based on text length
+                const textWidth = node.label.length * 8;
+                nodeDiv.style.left = (node.x - textWidth/2) + 'px';
+                nodeDiv.style.top = (node.y - 20) + 'px';
+                
+                // Add hover effect
+                nodeDiv.addEventListener('mouseenter', (e) => {
+                    const tooltip = document.getElementById('tooltip');
+                    tooltip.textContent = `NODE: ${node.label} [${node.type.toUpperCase()}]`;
+                    tooltip.style.display = 'block';
+                });
+                
+                nodeDiv.addEventListener('mousemove', (e) => {
+                    const tooltip = document.getElementById('tooltip');
+                    tooltip.style.left = e.pageX + 10 + 'px';
+                    tooltip.style.top = e.pageY - 30 + 'px';
+                });
+                
+                nodeDiv.addEventListener('mouseleave', () => {
+                    const tooltip = document.getElementById('tooltip');
+                    tooltip.style.display = 'none';
+                });
+                
+                nodesContainer.appendChild(nodeDiv);
+            });
+        }
+        
+        // Tab switching
+        function showTab(tabName) {
+            // Update tabs
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            
+            // Update content
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            document.getElementById(tabName).classList.add('active');
+            
+            // Redraw appropriate workflow
+            if (tabName === 'email') {
+                setTimeout(() => drawWorkflow('emailCanvas', 'emailNodes', emailWorkflow), 100);
+            } else if (tabName === 'matching') {
+                setTimeout(() => drawWorkflow('matchingCanvas', 'matchingNodes', matchingWorkflow), 100);
+            } else if (tabName === 'system') {
+                setTimeout(() => drawWorkflow('systemCanvas', 'systemNodes', systemWorkflow), 100);
+            }
+        }
+        
+        // Initial draw
+        window.addEventListener('load', () => {
+            drawWorkflow('emailCanvas', 'emailNodes', emailWorkflow);
+        });
+    </script>
+</body>
+</html>
