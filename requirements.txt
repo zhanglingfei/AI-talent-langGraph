@@ -1,0 +1,15 @@
+langchain==0.1.0
+langgraph==0.0.20
+langchain-openai==0.0.5
+langchain-community==0.0.10
+openai==1.10.0
+fastapi==0.109.0
+uvicorn==0.27.0
+pydantic==2.5.0
+python-dotenv==1.0.0
+pandas==2.1.0
+google-auth==2.26.0
+google-auth-oauthlib==1.2.0
+google-api-python-client==2.114.0
+faiss-cpu==1.7.4
+redis==5.0.1
