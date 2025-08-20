@@ -120,3 +120,78 @@ class SheetsService:
         except Exception as e:
             print(f"批量更新失败: {e}")
             return False
+    
+    def append_candidate_data(self, candidate_data: Dict[str, Any]) -> bool:
+        """保存候选人数据到简历数据库"""
+        try:
+            sheet_name = Config.SHEET_NAMES["RESUME_DATABASE"]
+            return self.append_row(sheet_name, candidate_data)
+        except Exception as e:
+            print(f"保存候选人数据失败: {e}")
+            return False
+    
+    def append_project_data(self, project_data: Dict[str, Any]) -> bool:
+        """保存项目数据"""
+        try:
+            sheet_name = Config.SHEET_NAMES["PROJECTS"]
+            return self.append_row(sheet_name, project_data)
+        except Exception as e:
+            print(f"保存项目数据失败: {e}")
+            return False
+    
+    def append_match_data(self, match_data: Dict[str, Any]) -> bool:
+        """保存匹配结果数据"""
+        try:
+            sheet_name = Config.SHEET_NAMES["MATCHES"]
+            return self.append_row(sheet_name, match_data)
+        except Exception as e:
+            print(f"保存匹配数据失败: {e}")
+            return False
+    
+    def get_candidates(self, filter_criteria: Dict[str, Any] = None) -> List[Dict[str, Any]]:
+        """获取候选人列表，支持筛选"""
+        try:
+            sheet_name = Config.SHEET_NAMES["RESUME_DATABASE"]
+            data = self.read_sheet(sheet_name)
+            
+            if not data or len(data) < 2:  # 没有数据或只有标题行
+                return []
+            
+            # 假设第一行是标题
+            headers = data[0]
+            candidates = []
+            
+            for row in data[1:]:
+                if len(row) >= len(headers):
+                    candidate = dict(zip(headers, row))
+                    candidates.append(candidate)
+            
+            return candidates
+            
+        except Exception as e:
+            print(f"获取候选人数据失败: {e}")
+            return []
+    
+    def get_projects(self, filter_criteria: Dict[str, Any] = None) -> List[Dict[str, Any]]:
+        """获取项目列表，支持筛选"""
+        try:
+            sheet_name = Config.SHEET_NAMES["PROJECTS"]
+            data = self.read_sheet(sheet_name)
+            
+            if not data or len(data) < 2:  # 没有数据或只有标题行
+                return []
+            
+            # 假设第一行是标题
+            headers = data[0]
+            projects = []
+            
+            for row in data[1:]:
+                if len(row) >= len(headers):
+                    project = dict(zip(headers, row))
+                    projects.append(project)
+            
+            return projects
+            
+        except Exception as e:
+            print(f"获取项目数据失败: {e}")
+            return []
