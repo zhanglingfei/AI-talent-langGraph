@@ -7,7 +7,7 @@ from src.models import EmailType, CandidateInfo, ProjectInfo
 from src.graphs.states import GraphState
 
 class EmailProcessor:
-    """邮件处理节点集合"""
+    """Email processing node collection"""
     
     def __init__(self):
         self.llm = ChatOpenAI(
@@ -17,21 +17,21 @@ class EmailProcessor:
         )
         
     def classify_email(self, state: GraphState) -> GraphState:
-        """邮件分类节点"""
+        """Email classification node"""
         email = state["current_email"]
         
         classification_prompt = ChatPromptTemplate.from_template("""
-        分析这封邮件并判断类型：
+        Analyze this email and determine its type:
         
-        邮件主题: {subject}
-        邮件正文: {body}
+        Email Subject: {subject}
+        Email Body: {body}
         
-        请判断是 CANDIDATE、PROJECT 还是 OTHER 类型。
-        返回JSON格式：
+        Please determine if it's CANDIDATE, PROJECT, or OTHER type.
+        Return in JSON format:
         {{
             "type": "CANDIDATE|PROJECT|OTHER",
             "confidence": 0.85,
-            "reason": "判断依据"
+            "reason": "reasoning basis"
         }}
         """)
         
@@ -45,37 +45,37 @@ class EmailProcessor:
             
             state["email_type"] = EmailType(result["type"])
             state["classification_confidence"] = result["confidence"]
-            state["processing_log"].append(f"邮件分类: {result['type']}")
+            state["processing_log"].append(f"Email classification: {result['type']}")
             
         except Exception as e:
-            state["errors"].append(f"分类失败: {str(e)}")
+            state["errors"].append(f"Classification failed: {str(e)}")
             state["email_type"] = EmailType.OTHER
             
         return state
     
     def extract_candidate_info(self, state: GraphState) -> GraphState:
-        """提取候选人信息"""
+        """Extract candidate information"""
         email = state["current_email"]
         
         extraction_prompt = ChatPromptTemplate.from_template("""
-        从以下简历内容中提取候选人信息，请严格按照JSON格式返回：
+        Extract candidate information from the following resume content, please return strictly in JSON format:
         
-        内容: {content}
+        Content: {content}
         
-        请提取以下信息并返回JSON格式：
+        Please extract the following information and return in JSON format:
         {{
-            "name": "候选人全名",
-            "title": "职业头衔或期望职位",
-            "experience_years": "工作经验年限（数字+年，如'5年'）",
-            "skills": "技术技能列表，用逗号分隔",
-            "certificates": "证书信息，用逗号分隔",
-            "education": "教育背景",
-            "location_preference": "工作地点偏好",
-            "expected_salary": "期望薪资范围",
-            "contact": "联系方式（邮箱、电话等）"
+            "name": "candidate full name",
+            "title": "professional title or desired position",
+            "experience_years": "years of work experience (number + years, e.g. '5 years')",
+            "skills": "technical skills list, separated by commas",
+            "certificates": "certification information, separated by commas",
+            "education": "educational background",
+            "location_preference": "work location preference",
+            "expected_salary": "expected salary range",
+            "contact": "contact information (email, phone, etc.)"
         }}
         
-        如果某些信息未找到，请使用空字符串。
+        If some information is not found, please use empty strings.
         """)
         
         parser = PydanticOutputParser(pydantic_object=CandidateInfo)
@@ -84,19 +84,19 @@ class EmailProcessor:
         try:
             content = email.body
             if email.attachments:
-                content += "\n\n附件内容:\n" + "\n".join(email.attachments)
+                content += "\n\nAttachment content:\n" + "\n".join(email.attachments)
             
             candidate = chain.invoke({"content": content[:2000]})  # Limit content length
             candidate.id = f"CAND_{email.id}_{datetime.now().strftime('%Y%m%d%H%M%S')}"
             state["candidate_info"] = candidate
-            state["processing_log"].append(f"成功提取候选人信息: {candidate.name}")
+            state["processing_log"].append(f"Successfully extracted candidate information: {candidate.name}")
             
         except Exception as e:
-            state["errors"].append(f"候选人信息提取失败: {str(e)}")
+            state["errors"].append(f"Candidate information extraction failed: {str(e)}")
             # Create fallback candidate info
             state["candidate_info"] = CandidateInfo(
                 id=f"CAND_{email.id}_{datetime.now().strftime('%Y%m%d%H%M%S')}",
-                name="未知候选人",
+                name="Unknown candidate",
                 title="",
                 experience_years="",
                 skills="",
@@ -110,27 +110,27 @@ class EmailProcessor:
         return state
     
     def extract_project_info(self, state: GraphState) -> GraphState:
-        """提取项目信息"""
+        """Extract project information"""
         email = state["current_email"]
         
         extraction_prompt = ChatPromptTemplate.from_template("""
-        从以下项目需求内容中提取项目信息，请严格按照JSON格式返回：
+        Extract project information from the following project requirements content, please return strictly in JSON format:
         
-        内容: {content}
+        Content: {content}
         
-        请提取以下信息并返回JSON格式：
+        Please extract the following information and return in JSON format:
         {{
-            "title": "项目标题或名称",
-            "type": "项目类型（如：网站开发、移动应用、数据分析等）",
-            "tech_requirements": "技术要求和技术栈，用逗号分隔",
-            "description": "项目详细描述",
-            "budget": "项目预算范围",
-            "duration": "项目周期或时长",
-            "start_time": "项目开始时间",
-            "work_style": "工作方式（如：远程、现场、混合等）"
+            "title": "project title or name",
+            "type": "project type (e.g.: web development, mobile app, data analysis, etc.)",
+            "tech_requirements": "technical requirements and tech stack, separated by commas",
+            "description": "detailed project description",
+            "budget": "project budget range",
+            "duration": "project duration or timeline",
+            "start_time": "project start time",
+            "work_style": "work style (e.g.: remote, on-site, hybrid, etc.)"
         }}
         
-        如果某些信息未找到，请使用空字符串。
+        If some information is not found, please use empty strings.
         """)
         
         parser = PydanticOutputParser(pydantic_object=ProjectInfo)
@@ -139,15 +139,15 @@ class EmailProcessor:
         try:
             content = email.body
             if email.attachments:
-                content += "\n\n附件内容:\n" + "\n".join(email.attachments)
+                content += "\n\nAttachment content:\n" + "\n".join(email.attachments)
             
             project = chain.invoke({"content": content[:2000]})  # Limit content length
             project.id = f"PROJ_{email.id}_{datetime.now().strftime('%Y%m%d%H%M%S')}"
             state["project_info"] = project
-            state["processing_log"].append(f"成功提取项目信息: {project.title}")
+            state["processing_log"].append(f"Successfully extracted project information: {project.title}")
             
         except Exception as e:
-            state["errors"].append(f"项目信息提取失败: {str(e)}")
+            state["errors"].append(f"Project information extraction failed: {str(e)}")
             # Create fallback project info
             state["project_info"] = ProjectInfo(
                 id=f"PROJ_{email.id}_{datetime.now().strftime('%Y%m%d%H%M%S')}",

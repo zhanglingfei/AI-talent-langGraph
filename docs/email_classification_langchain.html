@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>LangChain Usage in classify_email</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root { --bg:#0b0f14; --card:#121822; --muted:#a7b4c2; --text:#e6edf3; --accent:#7cc6ff; --ok:#6ee7b7; --warn:#fbbf24; --err:#f87171; }
+    body { margin:0; font-family:system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, 'Helvetica Neue', Arial; background:var(--bg); color:var(--text); line-height:1.6; }
+    .wrap { max-width:980px; margin:40px auto; padding:0 20px; }
+    h1, h2, h3 { line-height:1.25; }
+    .card { background:var(--card); border:1px solid #1d2633; border-radius:12px; padding:18px 20px; margin:16px 0; }
+    .muted { color:var(--muted); }
+    .tags { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
+    .tag { font-size:12px; padding:4px 8px; border-radius:999px; background:#0e1420; border:1px solid #1d2633; color:var(--muted); }
+    pre { background:#0f1723; border:1px solid #1d2633; border-radius:10px; padding:14px; overflow:auto; }
+    code { font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size:13px; }
+    .flow { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+    .node { background:#0f1723; border:1px solid #1d2633; padding:8px 12px; border-radius:10px; }
+    .arrow { color:var(--muted); }
+    ul { margin:8px 0 0 20px; }
+    .ok { color:var(--ok); }
+    .warn { color:var(--warn); }
+    .err { color:var(--err); }
+    a { color:var(--accent); text-decoration:none; }
+    a:hover { text-decoration:underline; }
+  </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>LangChain Usage in <code>classify_email</code></h1>
+      <p class="muted">Explains how the function composes a prompt, an LLM, and a JSON parser using LangChain’s runnable pipeline.</p>
+
+      <div class="card">
+        <h2>Goal</h2>
+        <p>
+          Classify an incoming email as <strong>CANDIDATE</strong>, <strong>PROJECT</strong>, or <strong>OTHER</strong>, with a confidence score and a short reason, then persist results back into the graph state.
+        </p>
+        <div class="tags">
+          <span class="tag">LangChain</span>
+          <span class="tag">ChatPromptTemplate</span>
+          <span class="tag">ChatOpenAI</span>
+          <span class="tag">JsonOutputParser</span>
+          <span class="tag">Runnable Pipeline</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Core Pipeline</h2>
+        <div class="flow">
+          <div class="node">ChatPromptTemplate</div>
+          <div class="arrow">→</div>
+          <div class="node">ChatOpenAI (gpt-4, temp=0.1)</div>
+          <div class="arrow">→</div>
+          <div class="node">JsonOutputParser</div>
+        </div>
+        <p class="muted">Inputs: <code>subject</code>, <code>body[:500]</code> → Output: structured JSON with <code>type</code>, <code>confidence</code>, <code>reason</code>.</p>
+        <pre><code>classification_prompt = ChatPromptTemplate.from_template("""
+Analyze this email and determine its type:
+
+Email Subject: {subject}
+Email Body: {body}
+
+Please determine if it's CANDIDATE, PROJECT, or OTHER type.
+Return in JSON format:
+{{
+    "type": "CANDIDATE|PROJECT|OTHER",
+    "confidence": 0.85,
+    "reason": "reasoning basis"
+}}
+""")
+
+chain = classification_prompt | self.llm | JsonOutputParser()
+
+result = chain.invoke({
+    "subject": email.subject,
+    "body": email.body[:500]   # limit tokens
+})
+</code></pre>
+      </div>
+
+      <div class="card">
+        <h2>LangChain Components</h2>
+        <h3>1) ChatPromptTemplate</h3>
+        <ul>
+          <li>Defines a reusable prompt with slots <code>{subject}</code> and <code>{body}</code>.</li>
+          <li>Instructs the model to return strict JSON: ensures consistent, machine-parseable output.</li>
+        </ul>
+        <h3>2) ChatOpenAI</h3>
+        <ul>
+          <li>Model: <code>gpt-4</code>, <code>temperature=0.1</code> for stable, deterministic classifications.</li>
+          <li>Key is pulled from <code>Config.OPENAI_API_KEY</code>.</li>
+        </ul>
+        <h3>3) JsonOutputParser</h3>
+        <ul>
+          <li>Parses the model’s reply into a Python dict with fields: <code>type</code>, <code>confidence</code>, <code>reason</code>.</li>
+          <li>Raises if the output is not valid JSON (caught by error handling).</li>
+        </ul>
+        <h3>4) Runnable Composition</h3>
+        <ul>
+          <li>Uses the <code>|</code> operator to compose a pipeline: <em>prompt → llm → parser</em>.</li>
+          <li>Invoked with <code>chain.invoke(inputs)</code> to execute end-to-end.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h2>State Integration</h2>
+        <ul>
+          <li>Reads: <code>state["current_email"]</code> for <code>subject</code> and <code>body</code>.</li>
+          <li>Writes:
+            <ul>
+              <li><code>state["email_type"] = EmailType(result["type"]) </code></li>
+              <li><code>state["classification_confidence"] = result["confidence"]</code></li>
+              <li><code>state["processing_log"].append(...)</code></li>
+            </ul>
+          </li>
+        </ul>
+        <p class="ok">On success: updates classification and logs.</p>
+        <p class="err">On failure: appends error and defaults <code>email_type</code> to <code>OTHER</code>.</p>
+        <pre><code>try:
+    result = chain.invoke({"subject": email.subject, "body": email.body[:500]})
+    state["email_type"] = EmailType(result["type"])
+    state["classification_confidence"] = result["confidence"]
+    state["processing_log"].append(f"Email classification: {result['type']}")
+except Exception as e:
+    state["errors"].append(f"Classification failed: {str(e)}")
+    state["email_type"] = EmailType.OTHER
+</code></pre>
+      </div>
+
+      <div class="card">
+        <h2>Why This Design</h2>
+        <ul>
+          <li><strong>Reliability</strong>: JSON contract + parser validates structure.</li>
+          <li><strong>Performance</strong>: body truncated to 500 chars to control token usage.</li>
+          <li><strong>Traceability</strong>: logs and explicit state fields enable observability.</li>
+          <li><strong>Maintainability</strong>: pipeline is declarative and easy to extend.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h2>Extensibility Tips</h2>
+        <ul>
+          <li>Add schema validation (e.g., Pydantic) for stronger type guarantees.</li>
+          <li>Introduce confidence thresholds to gate downstream processing.</li>
+          <li>Multi-model routing (e.g., cheap model first, fallback to stronger model on low confidence).</li>
+          <li>Internationalization: adjust prompt language for multilingual emails.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h2>How to Use</h2>
+        <ul>
+          <li>Ensure <code>OPENAI_API_KEY</code> is set in your environment.</li>
+          <li>Provide <code>state["current_email"]</code> with <code>subject</code> and <code>body</code>.</li>
+          <li>Call <code>EmailProcessor.classify_email(state)</code> and inspect updated state fields.</li>
+        </ul>
+      </div>
+
+      <p class="muted">Source: <code>src/nodes/email_nodes.py</code>, method <code>classify_email</code>.</p>
+    </div>
+  </body>
+  </html>
+
+
