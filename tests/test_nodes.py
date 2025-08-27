@@ -135,7 +135,8 @@ class TestMatchingEngine:
     
     def setup_method(self):
         """测试设置"""
-        self.engine = MatchingEngine()
+        self.engine = MatchingEngine(use_vector_search=False)  # 测试时使用传统方法
+        self.vector_engine = MatchingEngine(use_vector_search=True)  # 向量搜索引擎
     
     def test_prefilter_candidates_with_mock_data(self):
         """测试候选人预筛选 - 使用模拟数据"""
@@ -243,6 +244,56 @@ class TestMatchingEngine:
             assert len(result["match_results"]) > 0  # 应该有备用匹配结果
             assert any("备用匹配结果" in log for log in result["processing_log"])
             assert len(result["errors"]) > 0
+    
+    def test_vector_similarity_matching_success(self):
+        """测试向量相似度匹配 - 成功情况"""
+        state = {
+            "prefiltered_items": [
+                {
+                    "id": "C001", 
+                    "name": "张三",
+                    "point_id": "uuid-001",
+                    "similarity_score": 0.85
+                },
+                {
+                    "id": "C002", 
+                    "name": "李四",
+                    "point_id": "uuid-002", 
+                    "similarity_score": 0.75
+                }
+            ],
+            "match_results": [],
+            "processing_log": [],
+            "errors": []
+        }
+        
+        result = self.vector_engine.vector_similarity_matching(state)
+        
+        # 验证向量匹配结果
+        assert len(result["match_results"]) == 2
+        assert result["match_results"][0].score == 85  # 第一个应该是最高分
+        assert "向量相似度匹配" in result["match_results"][0].reason
+        assert any("向量相似度匹配完成" in log for log in result["processing_log"])
+    
+    def test_vector_prefilter_candidates_with_query(self):
+        """测试向量搜索预筛选候选人"""
+        state = {
+            "query": "Python开发工程师",
+            "prefiltered_items": [],
+            "processing_log": [],
+            "errors": []
+        }
+        
+        with patch.object(self.vector_engine.qdrant_service, 'search_candidates') as mock_search:
+            mock_search.return_value = [
+                {"id": "C001", "name": "张三", "similarity_score": 0.9}
+            ]
+            
+            result = self.vector_engine.prefilter_candidates(state)
+            
+            # 验证向量搜索结果
+            assert len(result["prefiltered_items"]) == 1
+            assert any("向量搜索候选人完成" in log for log in result["processing_log"])
 
 
 class TestDataPersistence:
@@ -250,7 +301,8 @@ class TestDataPersistence:
     
     def setup_method(self):
         """测试设置"""
-        self.persistence = DataPersistence()
+        self.persistence = DataPersistence(use_qdrant=False)  # 测试时使用Google Sheets
+        self.qdrant_persistence = DataPersistence(use_qdrant=True)  # Qdrant持久化
     
     def test_save_candidate_success(self):
         """测试保存候选人 - 成功情况"""
@@ -326,6 +378,90 @@ class TestDataPersistence:
             
             # 验证保存结果
             assert any("匹配结果已保存到Google Sheets: 2/2 条" in log for log in result["processing_log"])
+            assert len(result["errors"]) == 0
+    
+    def test_save_candidate_qdrant_success(self):
+        """测试保存候选人到Qdrant - 成功情况"""
+        candidate = CandidateInfo(
+            id="CAND_001",
+            name="张三",
+            title="Java开发工程师",
+            experience_years="5年",
+            skills="Java, Spring Boot",
+            certificates="",
+            education="本科",
+            location_preference="北京",
+            expected_salary="15k-20k",
+            contact="zhangsan@example.com"
+        )
+        
+        state = {
+            "candidate_info": candidate,
+            "processing_log": [],
+            "errors": [],
+            "emails": [],
+            "current_email": None,
+            "email_type": None,
+            "classification_confidence": 0.0,
+            "project_info": None,
+            "match_type": None,
+            "match_query_id": None,
+            "prefiltered_items": [],
+            "match_results": [],
+            "next_step": None,
+            "retry_count": 0,
+            "batch_complete": False
+        }
+        
+        with patch.object(self.qdrant_persistence.qdrant_service, 'save_candidate') as mock_save:
+            mock_save.return_value = True
+            
+            result = self.qdrant_persistence.save_candidate(state)
+            
+            # 验证Qdrant保存结果
+            assert any("已保存到Qdrant" in log for log in result["processing_log"])
+            assert len(result["errors"]) == 0
+    
+    def test_save_project_qdrant_success(self):
+        """测试保存项目到Qdrant - 成功情况"""
+        from src.models import ProjectInfo
+        project = ProjectInfo(
+            id="PROJ_001",
+            title="电商平台开发",
+            type="Web开发",
+            tech_requirements="Java, Spring Boot, MySQL",
+            description="开发一个电商平台",
+            budget="50万",
+            duration="6个月",
+            start_time="2024年1月",
+            work_style="远程"
+        )
+        
+        state = {
+            "project_info": project,
+            "processing_log": [],
+            "errors": [],
+            "emails": [],
+            "current_email": None,
+            "email_type": None,
+            "classification_confidence": 0.0,
+            "candidate_info": None,
+            "match_type": None,
+            "match_query_id": None,
+            "prefiltered_items": [],
+            "match_results": [],
+            "next_step": None,
+            "retry_count": 0,
+            "batch_complete": False
+        }
+        
+        with patch.object(self.qdrant_persistence.qdrant_service, 'save_project') as mock_save:
+            mock_save.return_value = True
+            
+            result = self.qdrant_persistence.save_project(state)
+            
+            # 验证Qdrant保存结果
+            assert any("已保存到Qdrant" in log for log in result["processing_log"])
             assert len(result["errors"]) == 0
 
 

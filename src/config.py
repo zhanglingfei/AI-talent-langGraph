@@ -15,10 +15,15 @@ class Config:
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
     DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
     
-    # Google配置
+    # Google配置 (备用)
     SPREADSHEET_ID = os.getenv("GOOGLE_SPREADSHEET_ID")
     ATTACHMENT_FOLDER_ID = os.getenv("GOOGLE_FOLDER_ID")
     CREDENTIALS_PATH = os.getenv("GOOGLE_CREDENTIALS_PATH", "src/services/credentials.json")
+    
+    # Qdrant配置
+    QDRANT_HOST = os.getenv("QDRANT_HOST", "localhost")
+    QDRANT_PORT = int(os.getenv("QDRANT_PORT", 6333))
+    QDRANT_GRPC_PORT = int(os.getenv("QDRANT_GRPC_PORT", 6334))
     
     # Redis
     REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
@@ -31,7 +36,18 @@ class Config:
     LLM_TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", 0.05))
     LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", 2000))
     
-    # Sheet名称
+    # 向量化配置
+    EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "text-embedding-ada-002")
+    EMBEDDING_DIMENSION = int(os.getenv("EMBEDDING_DIMENSION", 1536))
+    
+    # Qdrant Collection名称
+    COLLECTIONS = {
+        "CANDIDATES": "talent_candidates",
+        "PROJECTS": "talent_projects",
+        "MATCHES": "talent_matches"
+    }
+    
+    # Sheet名称 (备用)
     SHEET_NAMES = {
         "GMAIL_DATA": "GmailData",
         "PROJECTS": "Projects", 

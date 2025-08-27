@@ -10,40 +10,57 @@ from langchain_openai import ChatOpenAI
 from src.config import Config
 from src.graphs.states import GraphState
 from src.models import MatchResult
+from src.services.qdrant_service import QdrantService
 
 class MatchingEngine:
     """匹配引擎节点集合"""
     
-    def __init__(self):
+    def __init__(self, use_vector_search=True):
         self.llm = ChatOpenAI(
             model="gpt-4",
             temperature=0.05,
             api_key=Config.OPENAI_API_KEY
         )
+        self.use_vector_search = use_vector_search
+        if use_vector_search:
+            self.qdrant_service = QdrantService()
         
     def prefilter_candidates(self, state: GraphState) -> GraphState:
         """预筛选候选人节点"""
         state["processing_log"].append("执行候选人预筛选")
         
         try:
-            from src.services.sheets_service import SheetsService
-            sheets_service = SheetsService()
-            
-            # 从数据库读取候选人数据
-            candidates = sheets_service.get_candidates()
-            
-            if candidates:
-                # 简单预筛选逻辑（可以根据需要扩展）
-                filtered_candidates = candidates[:10]  # 限制数量
-                state["prefiltered_items"] = filtered_candidates
-                state["processing_log"].append(f"预筛选候选人完成: {len(filtered_candidates)} 个")
+            if self.use_vector_search:
+                # 使用向量搜索进行预筛选
+                query = state.get("query", "")
+                if query:
+                    candidates = self.qdrant_service.search_candidates(
+                        query=query, 
+                        limit=10, 
+                        score_threshold=0.6
+                    )
+                    state["prefiltered_items"] = candidates
+                    state["processing_log"].append(f"向量搜索候选人完成: {len(candidates)} 个")
+                else:
+                    # 没有查询条件，返回空结果
+                    state["prefiltered_items"] = []
+                    state["processing_log"].append("无查询条件，跳过候选人预筛选")
             else:
-                # 如果没有数据，使用模拟数据
-                state["prefiltered_items"] = [
-                    {"id": "C001", "name": "张三", "skills": "Java, Spring", "title": "Java开发工程师"},
-                    {"id": "C002", "name": "李四", "skills": "Python, Django", "title": "Python开发工程师"}
-                ]
-                state["processing_log"].append("使用模拟候选人数据")
+                # 备用：使用传统方法
+                from src.services.sheets_service import SheetsService
+                sheets_service = SheetsService()
+                candidates = sheets_service.get_candidates()
+                
+                if candidates:
+                    filtered_candidates = candidates[:10]
+                    state["prefiltered_items"] = filtered_candidates
+                    state["processing_log"].append(f"预筛选候选人完成: {len(filtered_candidates)} 个")
+                else:
+                    state["prefiltered_items"] = [
+                        {"id": "C001", "name": "张三", "skills": "Java, Spring", "title": "Java开发工程师"},
+                        {"id": "C002", "name": "李四", "skills": "Python, Django", "title": "Python开发工程师"}
+                    ]
+                    state["processing_log"].append("使用模拟候选人数据")
                 
         except Exception as e:
             state["errors"].append(f"候选人预筛选失败: {str(e)}")
@@ -60,24 +77,37 @@ class MatchingEngine:
         state["processing_log"].append("执行项目预筛选")
         
         try:
-            from src.services.sheets_service import SheetsService
-            sheets_service = SheetsService()
-            
-            # 从数据库读取项目数据
-            projects = sheets_service.get_projects()
-            
-            if projects:
-                # 简单预筛选逻辑（可以根据需要扩展）
-                filtered_projects = projects[:10]  # 限制数量
-                state["prefiltered_items"] = filtered_projects
-                state["processing_log"].append(f"预筛选项目完成: {len(filtered_projects)} 个")
+            if self.use_vector_search:
+                # 使用向量搜索进行预筛选
+                query = state.get("query", "")
+                if query:
+                    projects = self.qdrant_service.search_projects(
+                        query=query, 
+                        limit=10, 
+                        score_threshold=0.6
+                    )
+                    state["prefiltered_items"] = projects
+                    state["processing_log"].append(f"向量搜索项目完成: {len(projects)} 个")
+                else:
+                    # 没有查询条件，返回空结果
+                    state["prefiltered_items"] = []
+                    state["processing_log"].append("无查询条件，跳过项目预筛选")
             else:
-                # 如果没有数据，使用模拟数据
-                state["prefiltered_items"] = [
-                    {"id": "P001", "title": "电商平台开发", "tech_requirements": "Java, Spring Boot, MySQL"},
-                    {"id": "P002", "title": "数据分析平台", "tech_requirements": "Python, Django, PostgreSQL"}
-                ]
-                state["processing_log"].append("使用模拟项目数据")
+                # 备用：使用传统方法
+                from src.services.sheets_service import SheetsService
+                sheets_service = SheetsService()
+                projects = sheets_service.get_projects()
+                
+                if projects:
+                    filtered_projects = projects[:10]
+                    state["prefiltered_items"] = filtered_projects
+                    state["processing_log"].append(f"预筛选项目完成: {len(filtered_projects)} 个")
+                else:
+                    state["prefiltered_items"] = [
+                        {"id": "P001", "title": "电商平台开发", "tech_requirements": "Java, Spring Boot, MySQL"},
+                        {"id": "P002", "title": "数据分析平台", "tech_requirements": "Python, Django, PostgreSQL"}
+                    ]
+                    state["processing_log"].append("使用模拟项目数据")
                 
         except Exception as e:
             state["errors"].append(f"项目预筛选失败: {str(e)}")
@@ -86,6 +116,44 @@ class MatchingEngine:
                 {"id": "P001", "title": "电商平台开发", "tech_requirements": "Java, Spring Boot, MySQL"},
                 {"id": "P002", "title": "数据分析平台", "tech_requirements": "Python, Django, PostgreSQL"}
             ]
+        
+        return state
+    
+    def vector_similarity_matching(self, state: GraphState) -> GraphState:
+        """基于向量相似度的直接匹配"""
+        if not self.use_vector_search:
+            state["processing_log"].append("向量搜索未启用，跳过相似度匹配")
+            return state
+        
+        prefiltered_items = state.get("prefiltered_items", [])
+        if not prefiltered_items:
+            state["match_results"] = []
+            state["processing_log"].append("无预筛选项目，跳过相似度匹配")
+            return state
+        
+        try:
+            matches = []
+            for item in prefiltered_items[:5]:  # 限制处理数量
+                # 将相似度分数转换为匹配结果
+                similarity_score = item.get("similarity_score", 0.7)
+                match_score = int(similarity_score * 100)  # 转换为0-100分
+                
+                match_result = MatchResult(
+                    id=item.get("point_id", item.get("id", "unknown")),
+                    name=item.get("name", item.get("title", "未知")),
+                    score=match_score,
+                    reason=f"向量相似度匹配 (相似度: {similarity_score:.3f})"
+                )
+                matches.append(match_result)
+            
+            # 按分数排序
+            matches.sort(key=lambda x: x.score, reverse=True)
+            state["match_results"] = matches
+            state["processing_log"].append(f"向量相似度匹配完成: {len(matches)} 个结果")
+            
+        except Exception as e:
+            state["errors"].append(f"向量相似度匹配失败: {str(e)}")
+            state["match_results"] = []
         
         return state
     
