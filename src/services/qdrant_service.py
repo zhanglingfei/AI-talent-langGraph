@@ -166,7 +166,8 @@ class QdrantService:
         query: str, 
         filters: Optional[Dict[str, Any]] = None, 
         limit: int = 10,
-        score_threshold: float = 0.7
+        score_threshold: float = 0.7,
+        use_weighted_search: bool = True
     ) -> List[Dict[str, Any]]:
         """搜索候选人"""
         try:
@@ -186,13 +187,32 @@ class QdrantService:
                 score_threshold=score_threshold
             )
             
-            # 格式化结果
+            # 格式化结果并应用权重
             results = []
             for point in search_result:
                 result = point.payload.copy()
-                result["similarity_score"] = point.score
+                raw_similarity = point.score
+                
+                if use_weighted_search:
+                    # 应用index.html设计的权重：向量70% + 过滤30%
+                    weighted_score = self._calculate_weighted_score(
+                        raw_similarity, 
+                        result,
+                        filters or {}
+                    )
+                    result["similarity_score"] = raw_similarity
+                    result["weighted_score"] = weighted_score
+                    result["final_score"] = weighted_score
+                else:
+                    result["similarity_score"] = raw_similarity
+                    result["final_score"] = raw_similarity
+                
                 result["point_id"] = point.id
                 results.append(result)
+            
+            # 按最终分数重新排序
+            if use_weighted_search:
+                results.sort(key=lambda x: x.get("final_score", 0), reverse=True)
             
             logger.info(f"找到 {len(results)} 个候选人")
             return results
@@ -206,7 +226,8 @@ class QdrantService:
         query: str, 
         filters: Optional[Dict[str, Any]] = None, 
         limit: int = 10,
-        score_threshold: float = 0.7
+        score_threshold: float = 0.7,
+        use_weighted_search: bool = True
     ) -> List[Dict[str, Any]]:
         """搜索项目"""
         try:
@@ -226,13 +247,32 @@ class QdrantService:
                 score_threshold=score_threshold
             )
             
-            # 格式化结果
+            # 格式化结果并应用权重
             results = []
             for point in search_result:
                 result = point.payload.copy()
-                result["similarity_score"] = point.score
+                raw_similarity = point.score
+                
+                if use_weighted_search:
+                    # 应用权重：向量70% + 过滤30%
+                    weighted_score = self._calculate_weighted_score(
+                        raw_similarity, 
+                        result,
+                        filters or {}
+                    )
+                    result["similarity_score"] = raw_similarity
+                    result["weighted_score"] = weighted_score
+                    result["final_score"] = weighted_score
+                else:
+                    result["similarity_score"] = raw_similarity
+                    result["final_score"] = raw_similarity
+                
                 result["point_id"] = point.id
                 results.append(result)
+            
+            # 按最终分数重新排序
+            if use_weighted_search:
+                results.sort(key=lambda x: x.get("final_score", 0), reverse=True)
             
             logger.info(f"找到 {len(results)} 个项目")
             return results
@@ -292,6 +332,61 @@ class QdrantService:
                 conditions.append(condition)
         
         return Filter(must=conditions) if conditions else None
+    
+    def _calculate_weighted_score(
+        self, 
+        vector_score: float, 
+        candidate_data: Dict[str, Any], 
+        filters: Dict[str, Any]
+    ) -> float:
+        """计算加权分数 - 符合index.html设计：向量70% + 过滤30%"""
+        try:
+            # 向量相似度分数 (70%)
+            vector_weight = Config.MATCHING_WEIGHTS["VECTOR_SIMILARITY"]
+            vector_component = vector_score * vector_weight
+            
+            # 过滤匹配分数 (30%)
+            filter_weight = Config.MATCHING_WEIGHTS["METADATA_FILTERS"] 
+            filter_component = self._calculate_filter_score(candidate_data, filters) * filter_weight
+            
+            # 综合分数
+            final_score = vector_component + filter_component
+            
+            logger.debug(f"权重评分: 向量{vector_score:.3f}*{vector_weight} + 过滤{filter_component/filter_weight:.3f}*{filter_weight} = {final_score:.3f}")
+            
+            return min(1.0, final_score)  # 确保不超过1.0
+            
+        except Exception as e:
+            logger.error(f"权重计算失败: {str(e)}")
+            return vector_score
+    
+    def _calculate_filter_score(self, candidate_data: Dict[str, Any], filters: Dict[str, Any]) -> float:
+        """计算过滤条件匹配分数"""
+        if not filters:
+            return 0.8  # 无过滤条件时给基础分
+        
+        total_filters = len(filters)
+        matched_filters = 0
+        
+        for key, expected_value in filters.items():
+            candidate_value = candidate_data.get(key, "")
+            
+            if self._filter_matches(candidate_value, expected_value):
+                matched_filters += 1
+        
+        # 返回匹配百分比
+        return matched_filters / total_filters if total_filters > 0 else 0.8
+    
+    def _filter_matches(self, candidate_value: str, expected_value: Any) -> bool:
+        """检查过滤条件是否匹配"""
+        if not candidate_value or not expected_value:
+            return False
+        
+        candidate_str = str(candidate_value).lower()
+        expected_str = str(expected_value).lower()
+        
+        # 简单的包含匹配
+        return expected_str in candidate_str or candidate_str in expected_str
     
     def get_collection_info(self, collection_name: str) -> Dict[str, Any]:
         """获取集合信息"""

@@ -40,6 +40,18 @@ class Config:
     EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "text-embedding-ada-002")
     EMBEDDING_DIMENSION = int(os.getenv("EMBEDDING_DIMENSION", 1536))
     
+    # 匹配权重配置 - 符合index.html设计
+    MATCHING_WEIGHTS = {
+        # 标准Qdrant混合搜索权重 (Vector: 70%, Filters: 30%)
+        "VECTOR_SIMILARITY": float(os.getenv("VECTOR_WEIGHT", 0.7)),
+        "METADATA_FILTERS": float(os.getenv("FILTER_WEIGHT", 0.3)),
+        
+        # 高级混合评分权重 (可选)
+        "HYBRID_VECTOR": float(os.getenv("HYBRID_VECTOR_WEIGHT", 0.4)),
+        "HYBRID_AI": float(os.getenv("HYBRID_AI_WEIGHT", 0.35)), 
+        "HYBRID_BUSINESS": float(os.getenv("HYBRID_BUSINESS_WEIGHT", 0.25))
+    }
+    
     # Qdrant Collection名称
     COLLECTIONS = {
         "CANDIDATES": "talent_candidates",

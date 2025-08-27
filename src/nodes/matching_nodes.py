@@ -260,19 +260,21 @@ class MatchingEngine:
             project_info = state.get("project_info") or self._get_project_info_from_state(state)
             
             for item in prefiltered_items[:5]:  # 限制处理数量
-                # 1. 向量相似度分数 (权重: 30%)
-                vector_score = item.get("similarity_score", 0.7) * 100
-                vector_weight = 0.3
+                # 获取权重配置 - 支持动态调整
+                vector_weight = Config.MATCHING_WEIGHTS["HYBRID_VECTOR"] 
+                ai_weight = Config.MATCHING_WEIGHTS["HYBRID_AI"]
+                business_weight = Config.MATCHING_WEIGHTS["HYBRID_BUSINESS"]
                 
-                # 2. AI评分 (权重: 40%)
+                # 1. 向量相似度分数 
+                vector_score = item.get("final_score", item.get("similarity_score", 0.7)) * 100
+                
+                # 2. AI评分
                 ai_score, ai_reason = self._get_ai_score(item, project_info)
-                ai_weight = 0.4
                 
-                # 3. 业务规则评分 (权重: 30%)
+                # 3. 业务规则评分
                 business_score, business_reason = self.business_scorer.calculate_business_score(
                     item, project_info.model_dump() if project_info else {}
                 )
-                business_weight = 0.3
                 
                 # 计算综合分数
                 final_score = (
@@ -282,7 +284,7 @@ class MatchingEngine:
                 )
                 
                 # 构建综合匹配原因
-                hybrid_reason = f"混合评分 [向量:{vector_score:.1f}({vector_weight*100}%) | AI:{ai_score}({ai_weight*100}%) | 业务:{business_score}({business_weight*100}%)] = {final_score:.1f}"
+                hybrid_reason = f"混合评分 [向量:{vector_score:.1f}({vector_weight*100:.0f}%) | AI:{ai_score}({ai_weight*100:.0f}%) | 业务:{business_score}({business_weight*100:.0f}%)] = {final_score:.1f}"
                 
                 match_result = MatchResult(
                     id=item.get("point_id", item.get("id", "unknown")),
